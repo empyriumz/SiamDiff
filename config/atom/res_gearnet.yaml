@@ -1,8 +1,8 @@
-output_dir: ~/scratch/siamdiff_outputs
+output_dir: /host/scratch/siamdiff_outputs
 
 dataset:
   class: RESDataset
-  path: ~/scratch/protein-datasets/
+  path: /host/scratch/protein-datasets/
   atom_feature: null
   residue_feature: default
   transform:
@@ -36,7 +36,7 @@ optimizer:
   lr: 1.0e-4
 
 engine:
-  gpus: [0, 1, 2, 3]
+  gpus: [0, 1]
   batch_size: 64
 
 model_checkpoint: {{ ckpt }}

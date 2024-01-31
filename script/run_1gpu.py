@@ -20,16 +20,22 @@ import util
 from siamdiff import dataset, model, task, transform
 
 import warnings
+
 warnings.simplefilter("ignore")
 
 
-def train(cfg, model, optimizer, scheduler, train_set, valid_set, test_set, device):    
+def train(cfg, model, optimizer, scheduler, train_set, valid_set, test_set, device):
     best_epoch, best_val = None, -1e9
-    
+
     for epoch in range(cfg.num_epoch):
         model.train()
-        loss = loop(train_set, model, optimizer=optimizer, 
-                    max_time=cfg.get("train_time"), device=device)
+        loss = loop(
+            train_set,
+            model,
+            optimizer=optimizer,
+            max_time=cfg.get("train_time"),
+            device=device,
+        )
         torch.save(model.state_dict(), "model_epoch_%d.pth" % epoch)
         print("\nEPOCH %d TRAIN loss: %.8f" % (epoch, loss))
 
@@ -41,10 +47,20 @@ def train(cfg, model, optimizer, scheduler, train_set, valid_set, test_set, devi
         if metric[cfg.eval_metric] > best_val:
             best_epoch, best_val = epoch, metric[cfg.eval_metric]
             with torch.no_grad():
-                best_test_metric = test(test_set, task, max_time=cfg.test_time, device=device)
+                best_test_metric = test(
+                    test_set, task, max_time=cfg.test_time, device=device
+                )
             print("\nEPOCH %d" % epoch, "TEST metric:", best_test_metric)
-        print("BEST %d VAL %s: %.8f TEST %s: %.8f" % 
-                (best_epoch, cfg.eval_metric, best_val, cfg.eval_metric, best_test_metric[cfg.eval_metric]))
+        print(
+            "BEST %d VAL %s: %.8f TEST %s: %.8f"
+            % (
+                best_epoch,
+                cfg.eval_metric,
+                best_val,
+                cfg.eval_metric,
+                best_test_metric[cfg.eval_metric],
+            )
+        )
 
         if isinstance(scheduler, lr_scheduler.ReduceLROnPlateau):
             scheduler.step(loss)
@@ -52,60 +68,66 @@ def train(cfg, model, optimizer, scheduler, train_set, valid_set, test_set, devi
             scheduler.step()
 
     return best_epoch, best_val
-    
-    
+
+
 def loop(dataset, model, optimizer=None, max_time=None, device=None):
     start = time.time()
-    
+
     t = tqdm.tqdm(dataset)
     total_loss, total_count = 0, 0
-    
+
     for batch in t:
-        if max_time and (time.time() - start) > 60 * max_time: break
-        if optimizer: optimizer.zero_grad()
+        if max_time and (time.time() - start) > 60 * max_time:
+            break
+        if optimizer:
+            optimizer.zero_grad()
         try:
             batch = utils.cuda(batch, device=device)
             loss, metric = model(batch)
         except RuntimeError as e:
-            if "CUDA out of memory" not in str(e): raise(e)
+            if "CUDA out of memory" not in str(e):
+                raise (e)
             torch.cuda.empty_cache()
-            print('Skipped batch due to OOM', flush=True)
+            print("Skipped batch due to OOM", flush=True)
             continue
-        
+
         total_loss += float(loss)
         total_count += 1
-        
+
         if optimizer:
             try:
                 loss.backward()
                 optimizer.step()
             except RuntimeError as e:
-                if "CUDA out of memory" not in str(e): raise(e)
+                if "CUDA out of memory" not in str(e):
+                    raise (e)
                 torch.cuda.empty_cache()
-                print('Skipped batch due to OOM', flush=True)
+                print("Skipped batch due to OOM", flush=True)
                 continue
-            
+
         t.set_description(f"{total_loss/total_count:.8f}")
-    
+
     return total_loss / total_count
 
 
 def test(dataset, model, max_time=None, device=None):
     start = time.time()
     t = tqdm.tqdm(dataset)
-    
+
     preds, targets = [], []
     for batch in t:
-        if max_time and (time.time() - start) > 60 * max_time: break
+        if max_time and (time.time() - start) > 60 * max_time:
+            break
         try:
             batch = utils.cuda(batch, device=device)
             pred, target = model.predict_and_target(batch)
         except RuntimeError as e:
-            if "CUDA out of memory" not in str(e): raise(e)
+            if "CUDA out of memory" not in str(e):
+                raise (e)
             torch.cuda.empty_cache()
-            print('Skipped batch due to OOM', flush=True)
+            print("Skipped batch due to OOM", flush=True)
             continue
-        
+
         preds.append(pred)
         targets.append(target)
 
@@ -124,7 +146,7 @@ if __name__ == "__main__":
 
     seed = args.seed
     torch.manual_seed(seed + comm.get_rank())
-    os.environ['PYTHONHASHSEED'] = str(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -144,7 +166,7 @@ if __name__ == "__main__":
         train_set, valid_set, test_set = _dataset.split()
     elif cfg.dataset["class"] in ["PIPDataset"]:
         datasets = []
-        for i in range(3): 
+        for i in range(3):
             dataset_cfg = cfg.dataset.copy()
             dataset_cfg["path"] = dataset_cfg["path"][i]
             if "split_path" in dataset_cfg:
@@ -152,19 +174,37 @@ if __name__ == "__main__":
             datasets.append(core.Configurable.load_config_dict(dataset_cfg))
         train_set, valid_set, test_set = datasets
 
-    task, optimizer, scheduler = util.build_atom3d_solver(cfg, train_set, valid_set, test_set)
+    task, optimizer, scheduler = util.build_atom3d_solver(
+        cfg, train_set, valid_set, test_set
+    )
 
     # Only support single GPU now
-    device = torch.device(cfg.engine.gpus[0]) if cfg.engine.gpus else torch.device("cpu")
+    device = (
+        torch.device(cfg.engine.gpus[0]) if cfg.engine.gpus else torch.device("cpu")
+    )
     if device.type == "cuda":
         task = task.cuda(device)
 
     train_loader, valid_loader, test_loader = [
-        data.DataLoader(dataset, cfg.engine.batch_size, shuffle=(cfg.dataset["class"] != "PIPDataset"), num_workers=cfg.engine.num_worker)
-            for dataset in [train_set, valid_set, test_set]
+        data.DataLoader(
+            dataset,
+            cfg.engine.batch_size,
+            shuffle=(cfg.dataset["class"] != "PIPDataset"),
+            num_workers=cfg.engine.num_worker,
+        )
+        for dataset in [train_set, valid_set, test_set]
     ]
 
-    best_epoch, best_val = train(cfg.train, task, optimizer, scheduler, train_loader, valid_loader, test_loader, device)
+    best_epoch, best_val = train(
+        cfg.train,
+        task,
+        optimizer,
+        scheduler,
+        train_loader,
+        valid_loader,
+        test_loader,
+        device,
+    )
     task.load_state_dict("model_epoch_%d.pth" % best_epoch)
     task.eval()
     with torch.no_grad():

@@ -11,17 +11,17 @@ from siamdiff import layer
 
 @R.register("models.GVPGNN")
 class GVPGNN(nn.Module, core.Configurable):
-    '''
+    """
     Modified based on https://github.com/drorlab/gvp-pytorch/blob/main/gvp/models.py
     GVP-GNN for Model Quality Assessment as described in manuscript.
-    
-    Takes in protein structure graphs of type `torch_geometric.data.Data` 
+
+    Takes in protein structure graphs of type `torch_geometric.data.Data`
     or `torch_geometric.data.Batch` and returns a scalar score for
     each graph in the batch in a `torch.Tensor` of shape [n_nodes]
-    
+
     Should be used with `gvp.data.ProteinGraphDataset`, or with generators
     of `torch_geometric.data.Batch` objects with the same attributes.
-    
+
     :param node_in_dim: node dimensions in input graph, should be
                         (6, 3) if using original features
     :param node_h_dim: node dimensions to use in GVP-GNN layers
@@ -34,39 +34,67 @@ class GVPGNN(nn.Module, core.Configurable):
              is assumed to be part of input node embeddings
     :param num_layers: number of GVP-GNN layers
     :param drop_rate: rate to use in all dropout layers
-    '''
-    def __init__(self, node_in_dim, node_h_dim, 
-                 edge_in_dim, edge_h_dim, readout="sum",
-                 num_layers=3, drop_rate=0.1,
-                 activations=(F.relu, None), vector_gate=True,
-                 residue_in_dim=None):
+    """
 
+    def __init__(
+        self,
+        node_in_dim,
+        node_h_dim,
+        edge_in_dim,
+        edge_h_dim,
+        readout="sum",
+        num_layers=3,
+        drop_rate=0.1,
+        activations=(F.relu, None),
+        vector_gate=True,
+        residue_in_dim=None,
+    ):
         super().__init__()
         self.output_dim = node_h_dim[0]
         self.rbf_dim = edge_in_dim[0]
         self.residue_in_dim = residue_in_dim
         if residue_in_dim:
-            self.residue_embdding = nn.Linear(residue_in_dim, node_in_dim[0], bias=False)
+            self.residue_embdding = nn.Linear(
+                residue_in_dim, node_in_dim[0], bias=False
+            )
 
         self.embedding = nn.Embedding(node_in_dim[0], node_in_dim[0])
         self.W_v = nn.Sequential(
             layer.GVPLayerNorm(node_in_dim),
-            layer.GVP(node_in_dim, node_h_dim, activations=(None, None), vector_gate=vector_gate)
+            layer.GVP(
+                node_in_dim,
+                node_h_dim,
+                activations=(None, None),
+                vector_gate=vector_gate,
+            ),
         )
         self.W_e = nn.Sequential(
             layer.GVPLayerNorm(edge_in_dim),
-            layer.GVP(edge_in_dim, edge_h_dim, activations=(None, None), vector_gate=vector_gate)
+            layer.GVP(
+                edge_in_dim,
+                edge_h_dim,
+                activations=(None, None),
+                vector_gate=vector_gate,
+            ),
         )
 
         self.layers = nn.ModuleList(
-                layer.GVPConvLayer(node_h_dim, edge_h_dim, drop_rate=drop_rate,
-                                 activations=activations, vector_gate=vector_gate)
-            for _ in range(num_layers))
-        
+            layer.GVPConvLayer(
+                node_h_dim,
+                edge_h_dim,
+                drop_rate=drop_rate,
+                activations=activations,
+                vector_gate=vector_gate,
+            )
+            for _ in range(num_layers)
+        )
+
         ns, _ = node_h_dim
         self.W_out = nn.Sequential(
             layer.GVPLayerNorm(node_h_dim),
-            layer.GVP(node_h_dim, (ns, 0), activations=activations, vector_gate=vector_gate)
+            layer.GVP(
+                node_h_dim, (ns, 0), activations=activations, vector_gate=vector_gate
+            ),
         )
 
         if readout == "sum":
@@ -82,15 +110,15 @@ class GVPGNN(nn.Module, core.Configurable):
         d_sigma = (d_max - d_min) / self.rbf_dim
         d_expand = torch.unsqueeze(d, -1)
 
-        rbf = torch.exp(-((d_expand - d_mu) / d_sigma) ** 2)
+        rbf = torch.exp(-(((d_expand - d_mu) / d_sigma) ** 2))
         return rbf
 
-    def forward(self, graph, input, all_loss=None, metric=None):      
-        '''
+    def forward(self, graph, input, all_loss=None, metric=None):
+        """
         :param h_V: tuple (s, V) of node embeddings
         :param edge_index: `torch.Tensor` of shape [2, num_edges]
         :param h_E: tuple (s, V) of edge embeddings
-        '''
+        """
         h_node = self.embedding(graph.atom_type)
         if self.residue_in_dim:
             h_node = h_node + self.residue_embdding(input[graph.atom2residue].float())
@@ -103,7 +131,7 @@ class GVPGNN(nn.Module, core.Configurable):
             h_edge = graph.edge_feature.float(), vec_edge
         else:
             h_edge = self.rbf((pos_out - pos_in).norm(dim=-1)), vec_edge
-        
+
         h_node = self.W_v(h_node)
         h_edge = self.W_e(h_edge)
         for layer in self.layers:
@@ -112,7 +140,4 @@ class GVPGNN(nn.Module, core.Configurable):
 
         graph_feature = self.readout(graph, node_feature)
 
-        return {
-            "graph_feature": graph_feature,
-            "node_feature": node_feature
-        }
+        return {"graph_feature": graph_feature, "node_feature": node_feature}

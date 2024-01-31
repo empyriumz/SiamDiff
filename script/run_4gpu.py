@@ -57,7 +57,7 @@ if __name__ == "__main__":
 
     seed = args.seed
     torch.manual_seed(seed + comm.get_rank())
-    os.environ['PYTHONHASHSEED'] = str(seed)
+    os.environ["PYTHONHASHSEED"] = str(seed)
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -76,8 +76,13 @@ if __name__ == "__main__":
     train_set, valid_set, test_set = dataset.split()
     if comm.get_rank() == 0:
         logger.warning(dataset)
-        logger.warning("#train: %d, #valid: %d, #test: %d" % (len(train_set), len(valid_set), len(test_set)))
-    solver, scheduler = util.build_atom3d_solver(cfg, train_set, valid_set, test_set, use_solver=True)
+        logger.warning(
+            "#train: %d, #valid: %d, #test: %d"
+            % (len(train_set), len(valid_set), len(test_set))
+        )
+    solver, scheduler = util.build_atom3d_solver(
+        cfg, train_set, valid_set, test_set, use_solver=True
+    )
 
     train_and_validate(cfg, solver, scheduler)
     test(cfg, solver)

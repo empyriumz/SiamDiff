@@ -1,8 +1,8 @@
-output_dir: ~/scratch/siamdiff_outputs
+output_dir: /host/scratch/siamdiff_outputs
 
 dataset:
   class: AlphaFoldDB
-  path: ~/scratch/protein-datasets/alphafold
+  path: /host/scratch/protein-datasets/alphafold
   species_start: 0
   species_end: 21
   # species_id: 3
@@ -52,7 +52,7 @@ optimizer:
   lr: 1.0e-4
 
 engine:
-  gpus: [0, 1, 2, 3]
+  gpus: [1]
   batch_size: 32
   log_interval: 100
 

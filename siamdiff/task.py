@@ -1,15 +1,8 @@
-import os
-import glob
-import math
-import numpy as np
-
 import torch
 from torch.nn import functional as F
 from torch_scatter import scatter_sum, scatter_mean, scatter_add
-
-from torchdrug import core, tasks, layers, models, metrics, data
+from torchdrug import core, tasks, layers, metrics
 from torchdrug.data import constant
-from torchdrug.layers import functional
 from torchdrug.core import Registry as R
 
 
@@ -31,7 +24,7 @@ class PIP(tasks.InteractionPrediction):
 
     def preprocess(self, train_set, valid_set, test_set):
         weight = []
-        for task, w in self.task.items():
+        for _, w in self.task.items():
             weight.append(w)
 
         self.register_buffer("weight", torch.as_tensor(weight, dtype=torch.float))
@@ -169,7 +162,7 @@ class MSP(tasks.InteractionPrediction):
 
     def preprocess(self, train_set, valid_set, test_set):
         weight = []
-        for task, w in self.task.items():
+        for _, w in self.task.items():
             weight.append(w)
 
         self.register_buffer("weight", torch.as_tensor(weight, dtype=torch.float))

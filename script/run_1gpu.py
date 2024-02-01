@@ -1,23 +1,18 @@
 import os
 import sys
-import math
 import time
 import tqdm
 import pprint
 import random
-
 import numpy as np
-
 import torch
 from torch.optim import lr_scheduler
-
-from torchdrug import core, models, tasks, datasets, utils, data
+from torchdrug import core, datasets, utils, data
 from torchdrug.utils import comm
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import util
-
-from siamdiff import dataset, model, task, transform
+from siamdiff import task
 
 import warnings
 

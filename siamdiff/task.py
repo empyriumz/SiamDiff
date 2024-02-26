@@ -52,6 +52,7 @@ class PIP(tasks.InteractionPrediction):
 
 @R.register("tasks.PSR")
 class PSR(tasks.PropertyPrediction):
+
     def __init__(
         self, model, num_mlp_layer=1, graph_construction_model=None, verbose=0
     ):
@@ -70,6 +71,7 @@ class PSR(tasks.PropertyPrediction):
 
 @R.register("tasks.RES")
 class RES(tasks.Task, core.Configurable):
+
     def __init__(
         self, model, num_mlp_layer=1, graph_construction_model=None, verbose=0
     ):
@@ -144,6 +146,7 @@ class RES(tasks.Task, core.Configurable):
 
 @R.register("tasks.MSP")
 class MSP(tasks.InteractionPrediction):
+
     def __init__(
         self, model, num_mlp_layer=1, graph_construction_model=None, verbose=0
     ):
@@ -218,6 +221,7 @@ class MSP(tasks.InteractionPrediction):
 
 @R.register("tasks.EC")
 class EC(tasks.MultipleBinaryClassification):
+
     def __init__(
         self, model, task, num_mlp_layer=1, graph_construction_model=None, verbose=0
     ):
@@ -236,7 +240,6 @@ class EC(tasks.MultipleBinaryClassification):
 
 @R.register("tasks.SiamDiff")
 class SiamDiff(tasks.Task, core.Configurable):
-
     """
     Siamese Diffusion Trajectory Prediction.
 

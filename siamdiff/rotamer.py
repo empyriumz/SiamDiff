@@ -1,6 +1,3 @@
-import math
-import numpy as np
-
 import torch
 
 
@@ -432,9 +429,9 @@ def rotate_side_chain(protein, rotate_angles):
         protein.residue_type[protein.atom2residue], protein.atom_name
     ]
     mask = atom14index != -1
-    node_position[
-        protein.atom2residue[mask], atom14index[mask], :
-    ] = protein.node_position[mask]
+    node_position[protein.atom2residue[mask], atom14index[mask], :] = (
+        protein.node_position[mask]
+    )
 
     chi_atom14_index = chi_atom14_index_map[protein.residue_type].to(
         protein.device

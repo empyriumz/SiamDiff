@@ -1,0 +1,63 @@
+output_dir: /host/scratch/siamdiff_outputs
+
+dataset:
+  class: AlphaFoldDB
+  path: /host/scratch/protein-datasets/alphafold
+  species_start: 0
+  species_end: 21
+  verbose: 0
+  transform:
+    class: Compose
+    transforms:
+      - class: TruncateProtein
+        max_length: 150
+        random: True
+      - class: NoiseTransform
+        noise_type: torsion
+        sigma: 0.1
+      - class: AtomFeature
+        atom_feature: residue_symbol
+        keys: ["graph", "graph2"]
+
+task:
+  class: SiamDiff
+  num_mlp_layer: 3
+  sigma_begin: 1.0e-3
+  sigma_end: 0.1
+  num_noise_level: 100
+  gamma: 0.5
+  use_MI: True
+  model:
+    class: GVPGNN
+    node_in_dim: [18, 0]
+    node_h_dim: [100, 16]
+    edge_in_dim: [16, 1]
+    edge_h_dim: [32, 1]
+    num_layers: 5
+    vector_gate: True
+    readout: mean
+    drop_rate: 0.1
+    residue_in_dim: 39
+  num_mlp_layer: 3
+  graph_construction_model:
+    class: GraphConstruction
+    edge_layers:
+      - class: SpatialEdge
+        radius: 4.5
+        min_distance: 0
+    edge_feature: null
+
+optimizer:
+  class: Adam
+  lr: 1.0e-4
+
+engine:
+  gpus: [0, 1]
+  batch_size: 32
+  log_interval: 100
+
+save_interval: 5
+save_model: False
+
+train:
+  num_epoch: 25

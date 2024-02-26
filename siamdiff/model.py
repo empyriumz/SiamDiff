@@ -49,6 +49,7 @@ class GVPGNN(nn.Module, core.Configurable):
         vector_gate=True,
         residue_in_dim=None,
     ):
+
         super().__init__()
         self.output_dim = node_h_dim[0]
         self.rbf_dim = edge_in_dim[0]

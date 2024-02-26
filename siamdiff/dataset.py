@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 class Atom3DDataset:
+
     def protein_from_data_frame(
         self,
         df,
@@ -185,7 +186,7 @@ class RESDataset(data.ProteinDataset, Atom3DDataset):
     md5 = "c93125eb93d89e3b5898d5781c538662"
     processed_file = "RES-split-by-cath-topology.pkl.gz"
 
-    def __init__(self, path, transform=None, verbose=1, **kwargs):
+    def __init__(self, path, transform=None, verbose=0, **kwargs):
         path = os.path.join(os.path.expanduser(path), self.dir_name)
         if not os.path.exists(path):
             os.makedirs(path)
@@ -341,7 +342,7 @@ class PSRDataset(data.ProteinDataset, Atom3DDataset):
     md5 = "8647b9d10d0a79dff81d1d83c825e74c"
     processed_file = "PSR-split-by-year.pkl.gz"
 
-    def __init__(self, path, transform=None, verbose=1, **kwargs):
+    def __init__(self, path, transform=None, verbose=0, **kwargs):
         path = os.path.join(os.path.expanduser(path), self.dir_name)
         if not os.path.exists(path):
             os.makedirs(path)
@@ -557,7 +558,7 @@ class MSPDataset(data.ProteinDataset, Atom3DDataset):
     md5 = "6628e8efac12648d3b78bb0fc0d8860c"
     processed_file = "MSP-split-by-sequence-identity-30.pkl.gz"
 
-    def __init__(self, path, transform=None, verbose=1, **kwargs):
+    def __init__(self, path, transform=None, verbose=0, **kwargs):
         path = os.path.join(os.path.expanduser(path), self.dir_name)
         if not os.path.exists(path):
             os.makedirs(path)

@@ -347,6 +347,7 @@ class GVPConvLayer(nn.Module):
         activations=(F.relu, torch.sigmoid),
         vector_gate=False,
     ):
+
         super(GVPConvLayer, self).__init__()
         self.conv = GVPConv(
             node_dims,
@@ -422,5 +423,4 @@ class GVPConvLayer(nn.Module):
 
         if node_mask is not None:
             x_[0][node_mask], x_[1][node_mask] = x[0], x[1]
-            x = x_
         return x

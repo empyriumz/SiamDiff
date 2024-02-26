@@ -36,7 +36,7 @@ optimizer:
   lr: 1.0e-4
 
 engine:
-  gpus: [0, 1]
+  gpus: [1]
   batch_size: 32
   num_worker: 4
 

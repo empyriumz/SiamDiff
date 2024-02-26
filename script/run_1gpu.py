@@ -1,7 +1,6 @@
 import os
 import sys
 import time
-import tqdm
 import pprint
 import random
 import numpy as np
@@ -65,13 +64,11 @@ def train(cfg, model, optimizer, scheduler, train_set, valid_set, test_set, devi
     return best_epoch, best_val
 
 
-def loop(dataset, model, optimizer=None, max_time=None, device=None):
+def loop(dataset, model, optimizer=None, max_time=None, device=None, update_frequency=10):
     start = time.time()
-
-    t = tqdm.tqdm(dataset)
     total_loss, total_count = 0, 0
 
-    for batch in t:
+    for batch_idx, batch in enumerate(dataset):
         if max_time and (time.time() - start) > 60 * max_time:
             break
         if optimizer:
@@ -100,17 +97,18 @@ def loop(dataset, model, optimizer=None, max_time=None, device=None):
                 print("Skipped batch due to OOM", flush=True)
                 continue
 
-        t.set_description(f"{total_loss/total_count:.8f}")
+        # Print the average loss after every `update_frequency` batches
+        if (batch_idx + 1) % update_frequency == 0:
+            print(f"\rAverage Loss after {batch_idx + 1} batches: {total_loss/total_count:.8f}")
+        
 
     return total_loss / total_count
 
 
 def test(dataset, model, max_time=None, device=None):
     start = time.time()
-    t = tqdm.tqdm(dataset)
-
     preds, targets = [], []
-    for batch in t:
+    for batch in dataset:
         if max_time and (time.time() - start) > 60 * max_time:
             break
         try:

@@ -1,11 +1,11 @@
-output_dir: ~/scratch/siamdiff_outputs
+output_dir: /host/scratch/siamdiff_outputs
 
 dataset:
   class: PIPDataset
   path: 
-    - ~/scratch/protein-datasets/PPI-DIPS-split/DIPS-split/data/train
-    - ~/scratch/protein-datasets/PPI-DIPS-split/DIPS-split/data/val
-    - ~/scratch/protein-datasets/PPI-DIPS-split/DIPS-split/data/test
+    - /host/scratch/protein-datasets/PPI-DIPS-split/DIPS-split/data/train
+    - /host/scratch/protein-datasets/PPI-DIPS-split/DIPS-split/data/val
+    - /host/scratch/protein-datasets/PPI-DIPS-split/DIPS-split/data/test
   graph_construction_model:
     class: GraphConstruction
     edge_layers:

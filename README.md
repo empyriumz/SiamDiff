@@ -67,16 +67,16 @@ tar -zxvf ~/scratch/protein-datasets/PPI-DIPS-split/PPI-DIPS-split.tar.gz -C ~/s
 python script/run_1gpu.py -c config/atom/pip_gearnet.yaml
 
 # Since the RES dataset is large, we run GearNet-Edge with 4 gpus
-python -m torch.distributed.launch --nproc_per_node=4 script/run_4gpu.py -c config/atom/res_gearnet.yaml
+torchrun --nproc_per_node=4 script/run_4gpu.py -c config/atom/res_gearnet.yaml
 ```
 
 Besides atom-level tasks, we also provide residue-level evaluation on MSP, PSR and EC datasets. All these models are run with 4 gpus.
 ```bash
-python -m torch.distributed.launch --nproc_per_node=4 script/run_4gpu.py -c config/res/msp_gearnet.yaml
+torchrun --nproc_per_node=4 script/run_4gpu.py -c config/res/msp_gearnet.yaml
 
-python -m torch.distributed.launch --nproc_per_node=4 script/run_4gpu.py -c config/res/psr_gearnet.yaml
+torchrun --nproc_per_node=4 script/run_4gpu.py -c config/res/psr_gearnet.yaml
 
-python -m torch.distributed.launch --nproc_per_node=4 script/run_4gpu.py -c config/res/ec_gearnet.yaml
+torchrun --nproc_per_node=4 script/run_4gpu.py -c config/res/ec_gearnet.yaml
 ```
 
 ### Pre-training and Fine-tuning
@@ -87,11 +87,11 @@ Similar, all the datasets will be automatically downloaded in the code and prepr
 The pre-training is divided into two stages: large noise stage and small noise stage.
 ```bash
 # The first-stage pre-training with SiamDiff
-python -m torch.distributed.launch --nproc_per_node=4 script/pretrain.py -c config/pretrain/gearnet_1st.yaml
+torchrun --nproc_per_node=4 script/pretrain.py -c config/pretrain/gearnet_1st.yaml
 
 # The second-stage pre-training with SiamDiff
 # <path_to_ckpt> is the path to the checkpoint from the first-stage pre-training
-python -m torch.distributed.launch --nproc_per_node=4 script/pretrain.py -c config/pretrain/gearnet_2st.yaml --ckpt <path_to_ckpt>
+torchrun --nproc_per_node=4 script/pretrain.py -c config/pretrain/gearnet_2st.yaml --ckpt <path_to_ckpt>
 ```
 
 After pretraining, you can load the model weight from the saved checkpoint via the `--ckpt` argument and then fine-tune the model on downstream tasks.
@@ -105,12 +105,12 @@ python script/run_1gpu.py -c config/atom/pip_gearnet.yaml --ckpt <path_to_ckpt>
 Similar commands can be used for residue-level pre-training.
 ```bash
 # Two-stage pre-training with SiamDiff
-python -m torch.distributed.launch --nproc_per_node=4 script/pretrain.py -c config/pretrain/res_gearnet_1st.yaml
+torchrun --nproc_per_node=4 script/pretrain.py -c config/pretrain/res_gearnet_1st.yaml
 
-python -m torch.distributed.launch --nproc_per_node=4 script/pretrain.py -c config/pretrain/res_gearnet_2st.yaml --ckpt <path_to_ckpt>
+torchrun --nproc_per_node=4 script/pretrain.py -c config/pretrain/res_gearnet_2st.yaml --ckpt <path_to_ckpt>
 
 # Fine-tune the pre-trained model on the EC dataset
-python -m torch.distributed.launch --nproc_per_node=4 script/run_4gpu.py -c config/res/ec_gearnet.yaml --ckpt <path_to_ckpt>
+torchrun --nproc_per_node=4 script/run_4gpu.py -c config/res/ec_gearnet.yaml --ckpt <path_to_ckpt>
 ```
 
 You provide the two-stage pre-trained model weights as below.

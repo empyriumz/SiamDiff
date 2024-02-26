@@ -28,15 +28,21 @@ logger = logging.getLogger(__name__)
 
 class Atom3DDataset:
 
-    def protein_from_data_frame(self, df, atom_feature=None, bond_feature=None, 
-                                residue_feature="default", mol_feature=None):  
+    def protein_from_data_frame(
+        self,
+        df,
+        atom_feature=None,
+        bond_feature=None,
+        residue_feature="default",
+        mol_feature=None,
+    ):
         assert bond_feature is None
         assert mol_feature is None
         atom_feature = data.Protein._standarize_option(atom_feature)
         bond_feature = data.Protein._standarize_option(bond_feature)
         mol_feature = data.Protein._standarize_option(mol_feature)
         residue_feature = data.Protein._standarize_option(residue_feature)
-        
+
         atom2residue = []
         atom_type = []
         residue_type = []
@@ -52,10 +58,10 @@ class Atom3DDataset:
         _atom_feature = []
         last_residue = None
         for i, atom in df.iterrows():
-            atom_type.append(data.feature.atom_vocab.get(atom['element'], 0))
-            type = atom['resname']
-            number = atom['residue']
-            code = atom['insertion_code']
+            atom_type.append(data.feature.atom_vocab.get(atom["element"], 0))
+            type = atom["resname"]
+            number = atom["residue"]
+            code = atom["insertion_code"]
             canonical_residue = (number, code, type)
             if canonical_residue != last_residue:
                 last_residue = canonical_residue
@@ -65,33 +71,37 @@ class Atom3DDataset:
                 residue_type.append(data.Protein.residue2id[type])
                 residue_number.append(number)
                 insertion_code.append(data.Protein.alphabet2id.get(code, 0))
-                chain_id.append(data.Protein.alphabet2id.get(atom['chain'], 0))
+                chain_id.append(data.Protein.alphabet2id.get(atom["chain"], 0))
                 feature = []
                 for name in residue_feature:
                     if name == "default":
-                        feature = data.feature.onehot(type, data.feature.residue_vocab, allow_unknown=True)
+                        feature = data.feature.onehot(
+                            type, data.feature.residue_vocab, allow_unknown=True
+                        )
                     else:
-                        raise ValueError('Feature %s not included' % name)
+                        raise ValueError("Feature %s not included" % name)
                 _residue_feature.append(feature)
-            name = atom['name']
+            name = atom["name"]
             if name not in data.Protein.atom_name2id:
                 name = "UNK"
             atom_name.append(data.Protein.atom_name2id[name])
-            is_hetero_atom.append(atom['hetero'] != ' ')
-            occupancy.append(atom['occupancy'])
-            b_factor.append(atom['bfactor'])
-            node_position.append([atom['x'], atom['y'], atom['z']])
+            is_hetero_atom.append(atom["hetero"] != " ")
+            occupancy.append(atom["occupancy"])
+            b_factor.append(atom["bfactor"])
+            node_position.append([atom["x"], atom["y"], atom["z"]])
             atom2residue.append(len(residue_type) - 1)
             feature = []
             for name in atom_feature:
                 if name == "residue_symbol":
-                    feature += \
-                        data.feature.onehot(atom['element'], data.feature.atom_vocab, allow_unknown=True) + \
-                        data.feature.onehot(type, data.feature.residue_vocab, allow_unknown=True)
+                    feature += data.feature.onehot(
+                        atom["element"], data.feature.atom_vocab, allow_unknown=True
+                    ) + data.feature.onehot(
+                        type, data.feature.residue_vocab, allow_unknown=True
+                    )
                 else:
-                    raise ValueError('Feature %s not included' % name)
+                    raise ValueError("Feature %s not included" % name)
             _atom_feature.append(feature)
-        
+
         atom_type = torch.tensor(atom_type)
         residue_type = torch.tensor(residue_type)
         atom_name = torch.tensor(atom_name)
@@ -112,14 +122,29 @@ class Atom3DDataset:
         else:
             _atom_feature = None
 
-        return data.Protein(edge_list=None, num_node=len(atom_type), atom_type=atom_type, bond_type=[], 
-                    residue_type=residue_type, atom_name=atom_name, atom2residue=atom2residue, 
-                    is_hetero_atom=is_hetero_atom, occupancy=occupancy, b_factor=b_factor,
-                    residue_number=residue_number, insertion_code=insertion_code, chain_id=chain_id, 
-                    node_position=node_position, atom_feature=_atom_feature, residue_feature=_residue_feature)
+        return data.Protein(
+            edge_list=None,
+            num_node=len(atom_type),
+            atom_type=atom_type,
+            bond_type=[],
+            residue_type=residue_type,
+            atom_name=atom_name,
+            atom2residue=atom2residue,
+            is_hetero_atom=is_hetero_atom,
+            occupancy=occupancy,
+            b_factor=b_factor,
+            residue_number=residue_number,
+            insertion_code=insertion_code,
+            chain_id=chain_id,
+            node_position=node_position,
+            atom_feature=_atom_feature,
+            residue_feature=_residue_feature,
+        )
 
     @torch.no_grad()
-    def construct_graph(self, data_list, model=None, batch_size=1, gpus=None, verbose=True):
+    def construct_graph(
+        self, data_list, model=None, batch_size=1, gpus=None, verbose=True
+    ):
         protein_list = []
         if gpus is None:
             device = torch.device("cpu")
@@ -162,7 +187,7 @@ class RESDataset(data.ProteinDataset, Atom3DDataset):
     md5 = "c93125eb93d89e3b5898d5781c538662"
     processed_file = "RES-split-by-cath-topology.pkl.gz"
 
-    def __init__(self, path, transform=None, verbose=1, **kwargs):
+    def __init__(self, path, transform=None, verbose=0, **kwargs):
         path = os.path.join(os.path.expanduser(path), self.dir_name)
         if not os.path.exists(path):
             os.makedirs(path)
@@ -173,21 +198,35 @@ class RESDataset(data.ProteinDataset, Atom3DDataset):
         pkl_file = os.path.join(path, self.processed_file)
 
         if os.path.exists(pkl_file):
-            self.load_pickle(pkl_file, transform=transform, lazy=False, verbose=verbose, **kwargs)
+            self.load_pickle(
+                pkl_file, transform=transform, lazy=False, verbose=verbose, **kwargs
+            )
         else:
             self.transform = transform
             self.data = []
             self.sequences = []
             self.pdb_files = []
             self.kwargs = kwargs
-            for split in ['train', 'val', 'test']:
-                self.load_lmdb(os.path.join(path, 'split-by-cath-topology', 'data', split), verbose, **kwargs)
+            for split in ["train", "val", "test"]:
+                self.load_lmdb(
+                    os.path.join(path, "split-by-cath-topology", "data", split),
+                    verbose,
+                    **kwargs
+                )
             self.save_pickle(pkl_file, verbose=verbose)
 
-        splits = [os.path.basename(os.path.dirname(pdb_file)) for pdb_file in self.pdb_files]
+        splits = [
+            os.path.basename(os.path.dirname(pdb_file)) for pdb_file in self.pdb_files
+        ]
         self.num_samples = [
-            sum([self.data[i][1].batch_size for i, cur_split in enumerate(splits) if cur_split == split])
-                for split in ["train", "val", "test"]
+            sum(
+                [
+                    self.data[i][1].batch_size
+                    for i, cur_split in enumerate(splits)
+                    if cur_split == split
+                ]
+            )
+            for split in ["train", "val", "test"]
         ]
 
         self.protein = [item[0] for item in self.data]
@@ -196,7 +235,7 @@ class RESDataset(data.ProteinDataset, Atom3DDataset):
             for subunit in item[1].unpack():
                 data_list.append((subunit, i))
         self.data = data_list
-        
+
     def load_lmdb(self, lmdb_path, verbose, **kwargs):
         dataset = da.load_dataset(lmdb_path, "lmdb")
         if verbose:
@@ -204,22 +243,28 @@ class RESDataset(data.ProteinDataset, Atom3DDataset):
         for i, item in enumerate(dataset):
             protein = self.protein_from_data_frame(item["atoms"], **kwargs)
             if not protein:
-                logger.debug("Can't construct protein from pdb file `%s`. Ignore this sample." % item["id"])
+                logger.debug(
+                    "Can't construct protein from pdb file `%s`. Ignore this sample."
+                    % item["id"]
+                )
                 continue
             if hasattr(protein, "residue_feature"):
                 with protein.residue():
                     protein.residue_feature = protein.residue_feature.to_sparse()
             subunits = []
-            for sub in item['labels'].itertuples():
-                _, num, aa = sub.subunit.split('_')
-                if aa not in data.Protein.residue2id: continue
+            for sub in item["labels"].itertuples():
+                _, num, aa = sub.subunit.split("_")
+                if aa not in data.Protein.residue2id:
+                    continue
                 label = data.Protein.residue2id[aa]
                 num = int(num)
-                node_index = item['subunit_indices'][sub.Index]
+                node_index = item["subunit_indices"][sub.Index]
                 subprotein = protein.subgraph(node_index)
-                node_mask = (subprotein.residue_number[subprotein.atom2residue] == num) & \
-                            (subprotein.atom_name == data.Protein.atom_name2id["CA"])
-                if (node_mask.sum() > 1).all(): continue
+                node_mask = (
+                    subprotein.residue_number[subprotein.atom2residue] == num
+                ) & (subprotein.atom_name == data.Protein.atom_name2id["CA"])
+                if (node_mask.sum() > 1).all():
+                    continue
 
                 subunit = data.Graph(edge_list=[], num_node=len(node_index))
                 with subunit.node():
@@ -228,7 +273,8 @@ class RESDataset(data.ProteinDataset, Atom3DDataset):
                     subunit.residue_num = torch.tensor(num)
                     subunit.label = torch.tensor(label)
                 subunits.append(subunit)
-            if len(subunits) == 0: continue
+            if len(subunits) == 0:
+                continue
             subunits = data.Graph.pack(subunits)
             self.data.append((protein, subunits))
             self.sequences.append(protein.to_sequence())
@@ -241,17 +287,20 @@ class RESDataset(data.ProteinDataset, Atom3DDataset):
         residue_mask = torch.zeros((protein.num_residue,), dtype=torch.bool)
         residue_mask[protein.atom2residue] = 1
         protein = protein.subresidue(residue_mask)
-        node_mask = (protein.residue_number[protein.atom2residue] == subunit.residue_num) & \
-                    (protein.atom_name == data.Protein.atom_name2id["CA"])
+        node_mask = (
+            protein.residue_number[protein.atom2residue] == subunit.residue_num
+        ) & (protein.atom_name == data.Protein.atom_name2id["CA"])
         with protein.node():
             protein.ca_mask = node_mask
         with protein.graph():
             protein.label = torch.as_tensor(subunit.label)
-        
+
         if hasattr(protein, "residue_feature"):
             with protein.residue():
                 protein.residue_feature = protein.residue_feature.to_dense()
-            protein.residue_feature[protein.residue_number == subunit.residue_num, :] = 0
+            protein.residue_feature[
+                protein.residue_number == subunit.residue_num, :
+            ] = 0
             protein.residue_type[protein.residue_number == subunit.residue_num] = 0
         if not hasattr(protein, "atom_feature"):
             with protein.atom():
@@ -274,7 +323,7 @@ class RESDataset(data.ProteinDataset, Atom3DDataset):
     @property
     def edge_feature_dim(self):
         return self.protein[0].edge_feature.shape[-1]
-    
+
     @property
     def residue_feature_dim(self):
         return self.protein[0].residue_feature.shape[-1]
@@ -295,7 +344,7 @@ class PSRDataset(data.ProteinDataset, Atom3DDataset):
     md5 = "8647b9d10d0a79dff81d1d83c825e74c"
     processed_file = "PSR-split-by-year.pkl.gz"
 
-    def __init__(self, path, transform=None, verbose=1, **kwargs):
+    def __init__(self, path, transform=None, verbose=0, **kwargs):
         path = os.path.join(os.path.expanduser(path), self.dir_name)
         if not os.path.exists(path):
             os.makedirs(path)
@@ -306,20 +355,32 @@ class PSRDataset(data.ProteinDataset, Atom3DDataset):
         pkl_file = os.path.join(path, self.processed_file)
 
         if os.path.exists(pkl_file):
-            self.load_pickle(pkl_file, transform=transform, lazy=False, verbose=verbose, **kwargs)
+            self.load_pickle(
+                pkl_file, transform=transform, lazy=False, verbose=verbose, **kwargs
+            )
         else:
             self.transform = transform
             self.data = []
             self.sequences = []
             self.pdb_files = []
             self.kwargs = kwargs
-            for split in ['train', 'val', 'test']:
-                self.load_lmdb(os.path.join(path, 'split-by-year', 'data', split), verbose, **kwargs)
+            for split in ["train", "val", "test"]:
+                self.load_lmdb(
+                    os.path.join(path, "split-by-year", "data", split),
+                    verbose,
+                    **kwargs
+                )
             self.save_pickle(pkl_file, verbose=verbose)
-        
-        splits = [os.path.basename(os.path.dirname(pdb_file)) for pdb_file in self.pdb_files]
-        self.num_samples = [splits.count("train"), splits.count("val"), splits.count("test")]
-        
+
+        splits = [
+            os.path.basename(os.path.dirname(pdb_file)) for pdb_file in self.pdb_files
+        ]
+        self.num_samples = [
+            splits.count("train"),
+            splits.count("val"),
+            splits.count("test"),
+        ]
+
     def load_lmdb(self, lmdb_path, verbose, **kwargs):
         dataset = da.load_dataset(lmdb_path, "lmdb")
         if verbose:
@@ -327,7 +388,10 @@ class PSRDataset(data.ProteinDataset, Atom3DDataset):
         for i, data in enumerate(dataset):
             protein = self.protein_from_data_frame(data["atoms"], **kwargs)
             if not protein:
-                logger.debug("Can't construct protein from pdb file `%s`. Ignore this sample." % data["id"])
+                logger.debug(
+                    "Can't construct protein from pdb file `%s`. Ignore this sample."
+                    % data["id"]
+                )
                 continue
             if hasattr(protein, "residue_feature"):
                 with protein.residue():
@@ -341,11 +405,11 @@ class PSRDataset(data.ProteinDataset, Atom3DDataset):
     def get_item(self, index):
         protein = self.data[index]
         protein = protein.subgraph(protein.atom_type != 0)
-        
+
         if hasattr(protein, "residue_feature"):
             with protein.residue():
                 protein.residue_feature = protein.residue_feature.to_dense()
-        
+
         item = {"graph": protein}
         item["gdt_ts"] = protein.gdt_ts
         if self.transform:
@@ -363,7 +427,7 @@ class PSRDataset(data.ProteinDataset, Atom3DDataset):
             "#task: gdt_ts",
         ]
         return "%s(\n  %s\n)" % (self.__class__.__name__, "\n  ".join(lines))
-    
+
 
 @R.register("datasets.PIPDataset")
 class PIPDataset(IterableDataset, Atom3DDataset, core.Configurable):
@@ -374,69 +438,86 @@ class PIPDataset(IterableDataset, Atom3DDataset, core.Configurable):
         self.graph_construction_model = graph_construction_model
         self.transform = transform
         self.kwargs = kwargs
-        
+
     def __iter__(self):
         worker_info = torch.utils.data.get_worker_info()
         if worker_info is None:
             gen = self._dataset_generator(list(range(len(self.dataset))), shuffle=True)
-        else:  
-            per_worker = int(math.ceil(len(self.dataset) / float(worker_info.num_workers)))
+        else:
+            per_worker = int(
+                math.ceil(len(self.dataset) / float(worker_info.num_workers))
+            )
             worker_id = worker_info.id
             iter_start = worker_id * per_worker
             iter_end = min(iter_start + per_worker, len(self.dataset))
             gen = self._dataset_generator(
-                list(range(len(self.dataset)))[iter_start:iter_end],
-                shuffle=True)
+                list(range(len(self.dataset)))[iter_start:iter_end], shuffle=True
+            )
         return gen
 
     @torch.no_grad()
     def _df_to_graph(self, struct_df, chain_res):
-        struct_df = struct_df[struct_df.element != 'H'].reset_index(drop=True)
+        struct_df = struct_df[struct_df.element != "H"].reset_index(drop=True)
 
         chain, resnum = chain_res
         res_df = struct_df[(struct_df.chain == chain) & (struct_df.residue == resnum)]
-        if 'CA' not in res_df.name.tolist():
+        if "CA" not in res_df.name.tolist():
             return None
-        ca_pos = res_df[res_df['name']=='CA'][['x', 'y', 'z']].astype(np.float32).to_numpy()[0]
+        ca_pos = (
+            res_df[res_df["name"] == "CA"][["x", "y", "z"]]
+            .astype(np.float32)
+            .to_numpy()[0]
+        )
 
-        kd_tree = scipy.spatial.KDTree(struct_df[['x','y','z']].to_numpy())
+        kd_tree = scipy.spatial.KDTree(struct_df[["x", "y", "z"]].to_numpy())
         graph_pt_idx = kd_tree.query_ball_point(ca_pos, r=30.0, p=2.0)
         graph_df = struct_df.iloc[graph_pt_idx].reset_index(drop=True)
-        
-        ca_idx = np.where((graph_df.chain == chain) & (graph_df.residue == resnum) & (graph_df.name == 'CA'))[0]
+
+        ca_idx = np.where(
+            (graph_df.chain == chain)
+            & (graph_df.residue == resnum)
+            & (graph_df.name == "CA")
+        )[0]
         if len(ca_idx) != 1:
             return None
 
         protein = self.protein_from_data_frame(graph_df, **self.kwargs)
-        node_mask = torch.zeros((protein.num_node, ), dtype=torch.bool)
+        node_mask = torch.zeros((protein.num_node,), dtype=torch.bool)
         node_mask[ca_idx] = 1
         with protein.node():
             protein.ca_idx = node_mask
 
-        protein = self.construct_graph([protein], model=self.graph_construction_model, verbose=0)[0]
+        protein = self.construct_graph(
+            [protein], model=self.graph_construction_model, verbose=0
+        )[0]
 
         return protein
 
     def _dataset_generator(self, indices, shuffle=True):
-        if shuffle: random.shuffle(indices)
+        if shuffle:
+            random.shuffle(indices)
         with torch.no_grad():
             for idx in indices:
                 data = self.dataset[idx]
 
-                neighbors = data['atoms_neighbors']
-                pairs = data['atoms_pairs']
-                
-                for i, (ensemble_name, target_df) in enumerate(pairs.groupby(['ensemble'])):
+                neighbors = data["atoms_neighbors"]
+                pairs = data["atoms_pairs"]
+
+                for i, (ensemble_name, target_df) in enumerate(
+                    pairs.groupby(["ensemble"])
+                ):
                     sub_names, (bound1, bound2, _, _) = nb.get_subunits(target_df)
                     positives = neighbors[neighbors.ensemble0 == ensemble_name]
                     negatives = nb.get_negatives(positives, bound1, bound2)
-                    negatives['label'] = 0
-                    labels = self._create_labels(positives, negatives, num_pos=10, neg_pos_ratio=1)
-                    
+                    negatives["label"] = 0
+                    labels = self._create_labels(
+                        positives, negatives, num_pos=10, neg_pos_ratio=1
+                    )
+
                     for index, row in labels.iterrows():
-                        label = float(row['label'])
-                        chain_res1 = row[['chain0', 'residue0']].values
-                        chain_res2 = row[['chain1', 'residue1']].values
+                        label = float(row["label"])
+                        chain_res1 = row[["chain0", "residue0"]].values
+                        chain_res2 = row[["chain1", "residue1"]].values
                         graph1 = self._df_to_graph(bound1, chain_res1)
                         graph2 = self._df_to_graph(bound2, chain_res2)
                         if (graph1 is None) or (graph2 is None):
@@ -444,7 +525,7 @@ class PIPDataset(IterableDataset, Atom3DDataset, core.Configurable):
                         item = {
                             "graph1": graph1,
                             "graph2": graph2,
-                            "interaction": label
+                            "interaction": label,
                         }
                         if self.transform:
                             item = self.transform(item)
@@ -456,7 +537,9 @@ class PIPDataset(IterableDataset, Atom3DDataset, core.Configurable):
         n = positives.shape[0] * neg_pos_ratio
         n = min(negatives.shape[0], n)
         negatives = negatives.sample(n, random_state=0, axis=0)
-        labels = pd.concat([positives, negatives])[['chain0', 'residue0', 'chain1', 'residue1', 'label']]
+        labels = pd.concat([positives, negatives])[
+            ["chain0", "residue0", "chain1", "residue1", "label"]
+        ]
         return labels
 
     @property
@@ -470,7 +553,7 @@ class PIPDataset(IterableDataset, Atom3DDataset, core.Configurable):
         ]
         return "%s(\n  %s\n)" % (self.__class__.__name__, "\n  ".join(lines))
 
-    
+
 @R.register("datasets.MSPDataset")
 class MSPDataset(data.ProteinDataset, Atom3DDataset):
 
@@ -479,7 +562,7 @@ class MSPDataset(data.ProteinDataset, Atom3DDataset):
     md5 = "6628e8efac12648d3b78bb0fc0d8860c"
     processed_file = "MSP-split-by-sequence-identity-30.pkl.gz"
 
-    def __init__(self, path, transform=None, verbose=1, **kwargs):
+    def __init__(self, path, transform=None, verbose=0, **kwargs):
         path = os.path.join(os.path.expanduser(path), self.dir_name)
         if not os.path.exists(path):
             os.makedirs(path)
@@ -490,19 +573,31 @@ class MSPDataset(data.ProteinDataset, Atom3DDataset):
         pkl_file = os.path.join(path, self.processed_file)
 
         if os.path.exists(pkl_file):
-            self.load_pickle(pkl_file, transform=transform, lazy=False, verbose=verbose, **kwargs)
+            self.load_pickle(
+                pkl_file, transform=transform, lazy=False, verbose=verbose, **kwargs
+            )
         else:
             self.transform = transform
             self.data = []
             self.sequences = []
             self.pdb_files = []
             self.kwargs = kwargs
-            for split in ['train', 'val', 'test']:
-                self.load_lmdb(os.path.join(path, 'split-by-sequence-identity-30', 'data', split), verbose, **kwargs)
+            for split in ["train", "val", "test"]:
+                self.load_lmdb(
+                    os.path.join(path, "split-by-sequence-identity-30", "data", split),
+                    verbose,
+                    **kwargs
+                )
             self.save_pickle(pkl_file, verbose=verbose)
 
-        splits = [os.path.basename(os.path.dirname(pdb_file)) for pdb_file in self.pdb_files]
-        self.num_samples = [splits.count("train"), splits.count("val"), splits.count("test")]
+        splits = [
+            os.path.basename(os.path.dirname(pdb_file)) for pdb_file in self.pdb_files
+        ]
+        self.num_samples = [
+            splits.count("train"),
+            splits.count("val"),
+            splits.count("test"),
+        ]
 
     def load_lmdb(self, lmdb_path, verbose, **kwargs):
         dataset = da.load_dataset(lmdb_path, "lmdb")
@@ -512,7 +607,10 @@ class MSPDataset(data.ProteinDataset, Atom3DDataset):
             wt = self.protein_from_data_frame(data["original_atoms"], **kwargs)
             mt = self.protein_from_data_frame(data["mutated_atoms"], **kwargs)
             if not wt or not mt:
-                logger.debug("Can't construct protein from pdb file `%s`. Ignore this sample." % data["id"])
+                logger.debug(
+                    "Can't construct protein from pdb file `%s`. Ignore this sample."
+                    % data["id"]
+                )
                 continue
             if hasattr(wt, "residue_feature"):
                 with wt.residue():
@@ -520,7 +618,7 @@ class MSPDataset(data.ProteinDataset, Atom3DDataset):
                 with mt.residue():
                     mt.residue_feature = mt.residue_feature.to_sparse()
             with wt.graph():
-                wt.label = torch.tensor(data["label"] == '1')
+                wt.label = torch.tensor(data["label"] == "1")
             self.data.append((wt, mt))
             self.sequences.append((wt.to_sequence(), mt.to_sequence()))
             self.pdb_files.append(os.path.join(lmdb_path, str(i)))
@@ -554,7 +652,7 @@ class MSPDataset(data.ProteinDataset, Atom3DDataset):
             "#task: label",
         ]
         return "%s(\n  %s\n)" % (self.__class__.__name__, "\n  ".join(lines))
-    
+
 
 @R.register("datasets.ECDataset")
 class ECDataset(datasets.EnzymeCommission):

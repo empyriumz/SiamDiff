@@ -3,23 +3,20 @@ import sys
 import math
 import pprint
 import shutil
-
 import torch
-
 from torchdrug import core, models, tasks, datasets, utils
 from torchdrug.utils import comm
 
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 import util
-
 from siamdiff import dataset, model, task, transform
 
 
 def save(solver, path, save_model=True):
     if save_model:
-        model = solver.model.model      # only save the encoder
+        model = solver.model.model  # only save the encoder
     else:
-        model = solver.model            # save both the encoder and prediction head
+        model = solver.model  # save both the encoder and prediction head
 
     if comm.get_rank() == 0:
         logger.warning("Save checkpoint to %s" % path)
@@ -58,7 +55,7 @@ if __name__ == "__main__":
     for i in range(0, cfg.train.num_epoch, step):
         kwargs = cfg.train.copy()
         kwargs["num_epoch"] = min(step, cfg.train.num_epoch - i)
-        
+
         if species_end == species_start:
             solver.train(**kwargs)
         else:
@@ -67,9 +64,16 @@ if __name__ == "__main__":
                     cfg.dataset.species_id = species_id
                     cfg.dataset.split_id = split_id
                     dataset = core.Configurable.load_config_dict(cfg.dataset)
-                    logger.warning('Epoch: {}\tSpecies id: {}\tSplit id: {}\tSplit length: {}'.format(
-                                i, species_id, split_id, len(dataset)))
+                    logger.warning(
+                        "Epoch: {}\tSpecies id: {}\tSplit id: {}\tSplit length: {}".format(
+                            i, species_id, split_id, len(dataset)
+                        )
+                    )
                     solver.train_set = dataset
                     solver.train(**kwargs)
 
-        save(solver, "model_epoch_%d.pth" % (i + kwargs["num_epoch"]), cfg.get("save_model", True))
+        save(
+            solver,
+            "model_epoch_%d.pth" % (i + kwargs["num_epoch"]),
+            cfg.get("save_model", True),
+        )

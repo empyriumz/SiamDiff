@@ -5,19 +5,19 @@ dataset:
   path: /host/scratch/protein-datasets/alphafold
   species_start: 0
   species_end: 21
-  # species_id: 3
-  # split_id: 1
+  verbose: 0
   transform:
     class: Compose
     transforms:
-      - class: ProteinView
-        view: residue
       - class: TruncateProtein
         max_length: 150
         random: True
       - class: NoiseTransform
-        noise_type: gaussian
-        sigma: 0.3
+        noise_type: torsion
+        sigma: 0.1
+      - class: AtomFeature
+        atom_feature: residue_symbol
+        keys: ["graph", "graph2"]
 
 task:
   class: SiamDiff
@@ -28,38 +28,32 @@ task:
   gamma: 0.5
   use_MI: True
   model:
-    class: GearNet
-    input_dim: 21
-    hidden_dims: [ 512, 512, 512, 512, 512, 512 ]
-    batch_norm: True
-    concat_hidden: True
-    short_cut: True
-    readout: 'sum'
-    num_relation: 7
-    edge_input_dim: 59
-    num_angle_bin: 8
+    class: GVPGNN
+    node_in_dim: [18, 0]
+    node_h_dim: [100, 16]
+    edge_in_dim: [16, 1]
+    edge_h_dim: [32, 1]
+    num_layers: 5
+    vector_gate: True
+    readout: mean
+    drop_rate: 0.1
+    residue_in_dim: 39
+  num_mlp_layer: 3
   graph_construction_model:
     class: GraphConstruction
-    node_layers:
-        - class: AlphaCarbonNode
     edge_layers:
-      - class: SequentialEdge
-        max_distance: 2
       - class: SpatialEdge
-        radius: 10.0
-        min_distance: 5
-      - class: KNNEdge
-        k: 10
-        min_distance: 5
-    edge_feature: gearnet
+        radius: 4.5
+        min_distance: 0
+    edge_feature: null
 
 optimizer:
   class: Adam
   lr: 1.0e-4
 
 engine:
-  gpus: [0, 1, 2, 3]
-  batch_size: 16
+  gpus: [0, 1]
+  batch_size: 32
   log_interval: 100
 
 save_interval: 5

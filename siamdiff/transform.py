@@ -26,7 +26,11 @@ class NoiseTransform(core.Configurable):
             perturb_noise = torch.randn_like(graph.node_position)
             graph.node_position = graph.node_position + perturb_noise * self.sigma
         elif self.noise_type == "torsion":
-            torsion_updates = torch.randn((graph.num_residue, 4), device=graph.device) * self.sigma * np.pi
+            torsion_updates = (
+                torch.randn((graph.num_residue, 4), device=graph.device)
+                * self.sigma
+                * np.pi
+            )
             rotamer.rotate_side_chain(graph, torsion_updates)
         item["graph2"] = graph
         return item
@@ -49,10 +53,13 @@ class AtomFeature(core.Configurable):
             residue2num_atom = graph.atom2residue.bincount(minlength=graph.num_residue)
             graph = graph.subresidue(residue2num_atom > 0)
             if self.atom_feature == "residue_symbol":
-                atom_feature = torch.cat([
-                    functional.one_hot(graph.atom_type.clamp(max=17), 18),
-                    functional.one_hot(graph.residue_type[graph.atom2residue], 21)
-                ], dim=-1)
+                atom_feature = torch.cat(
+                    [
+                        functional.one_hot(graph.atom_type.clamp(max=17), 18),
+                        functional.one_hot(graph.residue_type[graph.atom2residue], 21),
+                    ],
+                    dim=-1,
+                )
             else:
                 raise ValueError
             with graph.atom():
@@ -78,9 +85,14 @@ class TruncateProteinPair(core.Configurable):
         residue_mask = graph1.residue_type != graph2.residue_type
         index = residue_mask.nonzero()[:, 0]
         if self.random:
-            start = math.randint(index, min(index + self.truncate_length, length)) - self.truncate_length
+            start = (
+                math.randint(index, min(index + self.truncate_length, length))
+                - self.truncate_length
+            )
         else:
-            start = min(index - self.truncate_length // 2, length - self.truncate_length)
+            start = min(
+                index - self.truncate_length // 2, length - self.truncate_length
+            )
         start = max(start, 0)
         end = start + self.truncate_length
         mask = torch.zeros(length, dtype=torch.bool, device=graph1.device)

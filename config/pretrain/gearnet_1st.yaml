@@ -52,7 +52,7 @@ optimizer:
   lr: 1.0e-4
 
 engine:
-  gpus: [1]
+  gpus: [0, 1]
   batch_size: 32
   log_interval: 100
 

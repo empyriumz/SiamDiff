@@ -1,8 +1,8 @@
-output_dir: ~/scratch/siamdiff_outputs
+output_dir: /host/scratch/siamdiff_outputs
 
 dataset:
   class: ECDataset
-  path: ~/scratch/protein-datasets/
+  path: /host/scratch/protein-datasets/
   test_cutoff: 0.95
   atom_feature: null
   residue_feature: default

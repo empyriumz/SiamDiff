@@ -1,4 +1,5 @@
 import torch
+import torch.nn as nn
 from torch.nn import functional as F
 from torch_scatter import scatter_sum, scatter_mean, scatter_add
 from torchdrug import core, tasks, layers, metrics
@@ -238,6 +239,76 @@ class EC(tasks.MultipleBinaryClassification):
         )
 
 
+class DiffusionProteinGenerator(nn.Module):
+    def __init__(self, model, num_noise_level, sigma_begin, sigma_end):
+        super(DiffusionProteinGenerator, self).__init__()
+        self.model = model
+        self.num_noise_level = num_noise_level
+        betas = torch.linspace(-6, 6, steps=num_noise_level)
+        self.betas = torch.sigmoid(betas) * (sigma_end - sigma_begin) + sigma_begin
+        self.alphas = 1.0 - self.betas
+        self.alphas_cumprod = torch.cumprod(self.alphas, dim=0)
+
+    def forward(self, graph, num_steps):
+        graph_list = [graph.clone()]
+        for t in range(num_steps - 1, -1, -1):
+            alpha_t = self.alphas[t]
+            beta_t = self.betas[t]
+            alpha_cumprod_t = self.alphas_cumprod[t]
+            with torch.no_grad():
+                # Generate the perturbation noise
+                perturb_noise = torch.randn_like(graph.node_position) * torch.sqrt(
+                    1.0 - alpha_cumprod_t
+                )
+                # Add perturbation noise
+                graph.node_position += perturb_noise
+
+                # Calculate perturbed distances for the struct_predict method
+                node_in, node_out = graph.edge_list.t()[:2]
+                perturbed_dist = (
+                    graph.node_position[node_in] - graph.node_position[node_out]
+                ).norm(dim=-1)
+
+                # Predict the structure noise
+                # struct_predict(self, output, graph, perturbed_dist, t)
+                struct_pred = self.model.struct_predict(
+                    graph.node_feature, graph, perturbed_dist, t
+                )
+
+                # Correct the node positions based on struct_predict output
+                graph.node_position = (
+                    graph.node_position - struct_pred * torch.sqrt(beta_t)
+                ) / torch.sqrt(alpha_t)
+
+                if t == 0:
+                    # Predict the sequence probabilities
+                    seq_pred_probs = self.model.seq_predict(
+                        graph, graph.node_feature, t
+                    )
+                    predicted_res_types = torch.argmax(seq_pred_probs, dim=-1)
+                    predicted_sequence = "".join(
+                        [
+                            constant.ID_TO_AA[res_type.item()]
+                            for res_type in predicted_res_types
+                        ]
+                    )
+
+                graph_list.append(graph.clone())
+        return graph_list[::-1]
+
+    def get_sequence(self, graph):
+        # Extract the protein sequence from the generated graph
+        residue_types = graph.residue_type.cpu().numpy()
+        sequence = "".join([constant.ID_TO_AA[res_type] for res_type in residue_types])
+        return sequence
+
+    def get_structure(self, graph):
+        # Extract the protein structure from the generated graph
+        node_positions = graph.node_position.cpu().numpy()
+        structure = node_positions.reshape(-1, 3)
+        return structure
+
+
 @R.register("tasks.SiamDiff")
 class SiamDiff(tasks.Task, core.Configurable):
     """
@@ -280,18 +351,21 @@ class SiamDiff(tasks.Task, core.Configurable):
         self.gamma = gamma
         betas = torch.linspace(-6, 6, num_noise_level)
         betas = betas.sigmoid() * (sigma_end - sigma_begin) + sigma_begin
-        alphas = (1.0 - betas).cumprod(dim=0)
+        alphas = 1.0 - betas
+        alphas_cumprod = torch.cumprod(alphas, dim=0)
         self.register_buffer("alphas", alphas)
+        self.register_buffer("betas", betas)
+        self.register_buffer("alphas_cumprod", alphas_cumprod)
         self.graph_construction_model = graph_construction_model
-
         output_dim = model.output_dim
         self.struct_mlp = layers.MLP(
-            2 * output_dim, [output_dim] * (num_mlp_layer - 1) + [1]
+            3 * output_dim, [output_dim] * (num_mlp_layer - 1) + [1]
         )
         self.dist_mlp = layers.MLP(1, [output_dim] * (num_mlp_layer - 1) + [output_dim])
         self.seq_mlp = layers.MLP(
             output_dim, [output_dim] * (num_mlp_layer - 1) + [self.num_class]
         )
+        self.time_embed = nn.Embedding(num_noise_level, output_dim)
 
     def add_seq_noise(self, graph, noise_level):
         num_nodes = graph.num_residues
@@ -325,8 +399,8 @@ class SiamDiff(tasks.Task, core.Configurable):
         return node_index, node_mask, seq_target
 
     def add_struct_noise(self, graph, noise_level):
-        # add noise to coordinates and change the pairwise distance in edge features if neccessary
-        a_graph = self.alphas[noise_level]  # (num_graph,)
+        # add noise to coordinates and change the pairwise distance in edge features if necessary
+        a_graph = self.alphas_cumprod[noise_level]  # (num_graph,)
         a_pos = a_graph[graph.node2graph]
         a_edge = a_graph[graph.edge2graph]
         node_in, node_out = graph.edge_list.t()[:2]
@@ -361,21 +435,36 @@ class SiamDiff(tasks.Task, core.Configurable):
         )
         return score_pos
 
-    def struct_predict(self, output, graph, perturbed_dist):
-        # predict scores on edges with node representations and perturbed distance
+    def struct_predict(self, output, graph, perturbed_dist, t):
+        # predict scores on edges with node representations, perturbed distance, and time embedding
+        # Ensure t is a 1D tensor
+        if not isinstance(t, torch.Tensor):
+            t = torch.tensor([t], dtype=torch.long, device=self.device)
+        elif t.dim() == 0:
+            t = t.unsqueeze(0)
+        time_embed = (
+            self.time_embed(t)
+            .unsqueeze(1)
+            .expand(-1, perturbed_dist.size(0), -1)
+            .squeeze(0)
+        )
         node_in, node_out = graph.edge_list.t()[:2]
         dist_pred = self.dist_mlp(perturbed_dist.unsqueeze(-1))
         edge_pred = self.struct_mlp(
-            torch.cat((output[node_in] * output[node_out], dist_pred), dim=-1)
+            torch.cat(
+                (output[node_in] * output[node_out], dist_pred, time_embed), dim=-1
+            )
         )
         pred = edge_pred.squeeze(-1)
         return pred
 
-    def seq_predict(self, graph, output, node_index):
+    def seq_predict(self, graph, output, node_index, t):
+        # predict sequence with node representations and time embedding
+        time_embed = self.time_embed(t).unsqueeze(1).expand(-1, node_index.size(0), -1)
         node_feature = scatter_mean(
             output, graph.atom2residue, dim=0, dim_size=graph.num_residue
         )[node_index]
-        seq_pred = self.seq_mlp(node_feature)
+        seq_pred = self.seq_mlp(torch.cat((node_feature, time_embed), dim=-1))
         return seq_pred
 
     def predict_and_target(self, batch, all_loss=None, metric=None):
@@ -390,8 +479,9 @@ class SiamDiff(tasks.Task, core.Configurable):
                 graph2 = self.graph_construction_model.apply_node_layer(graph2)
 
         noise_level = torch.randint(
-            0, self.alphas.shape[0], (graph1.batch_size,), device=self.device
+            0, self.alphas_cumprod.shape[0], (graph1.batch_size,), device=self.device
         )  # (num_graph, )
+
         # add shared sequence noise
         if self.gamma < 1.0:
             node_index, node_mask, seq_target = self.add_seq_noise(graph1, noise_level)
@@ -439,8 +529,9 @@ class SiamDiff(tasks.Task, core.Configurable):
         # predict structure noise
         if self.gamma > 0.0:
             # get invariant scores on edges instead of nodes
-            # following https://github.com/MinkaiXu/GeoDiff/blob/ea0ca48045a2f7abfccd7f0df449e45eb6eae638/models/epsnet/dualenc.py#L305-L308
-            struct_pred1 = self.struct_predict(output2, graph1, perturbed_dist1)
+            struct_pred1 = self.struct_predict(
+                output2, graph1, perturbed_dist1, noise_level
+            )
             struct_pred1 = self.eq_transform(struct_pred1, graph1)
             struct_target1 = self.eq_transform(struct_target1, graph1)
             loss1 = 0.5 * ((struct_pred1 - struct_target1) ** 2).sum(dim=-1)
@@ -448,7 +539,9 @@ class SiamDiff(tasks.Task, core.Configurable):
                 loss1, graph1.node2graph, dim=0, dim_size=graph1.batch_size
             ).mean()
             if self.use_MI:
-                struct_pred2 = self.struct_predict(output1, graph2, perturbed_dist2)
+                struct_pred2 = self.struct_predict(
+                    output1, graph2, perturbed_dist2, noise_level
+                )
                 struct_pred2 = self.eq_transform(struct_pred2, graph2)
                 struct_target2 = self.eq_transform(struct_target2, graph2)
 
@@ -464,7 +557,7 @@ class SiamDiff(tasks.Task, core.Configurable):
 
         # predict sequence noise
         if self.gamma < 1.0:
-            seq_pred1 = self.seq_predict(graph1, output2, node_index)
+            seq_pred1 = self.seq_predict(graph1, output2, node_index, noise_level)
             loss1 = 0.5 * F.cross_entropy(seq_pred1, seq_target, reduction="none")
             loss1 = scatter_mean(
                 loss1,
@@ -474,7 +567,7 @@ class SiamDiff(tasks.Task, core.Configurable):
             ).mean()
             acc1 = (seq_pred1.argmax(dim=-1) == seq_target).float().mean()
             if self.use_MI:
-                seq_pred2 = self.seq_predict(graph2, output1, node_index)
+                seq_pred2 = self.seq_predict(graph2, output1, node_index, noise_level)
                 loss2 = 0.5 * F.cross_entropy(seq_pred2, seq_target, reduction="none")
                 loss2 = scatter_mean(
                     loss2,
@@ -497,7 +590,6 @@ class SiamDiff(tasks.Task, core.Configurable):
         return pred, target
 
     def forward(self, batch):
-        """"""
         all_loss = torch.tensor(0, dtype=torch.float32, device=self.device)
         metric = {}
 

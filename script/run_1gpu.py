@@ -64,7 +64,9 @@ def train(cfg, model, optimizer, scheduler, train_set, valid_set, test_set, devi
     return best_epoch, best_val
 
 
-def loop(dataset, model, optimizer=None, max_time=None, device=None, update_frequency=10):
+def loop(
+    dataset, model, optimizer=None, max_time=None, device=None, update_frequency=10
+):
     start = time.time()
     total_loss, total_count = 0, 0
 
@@ -99,8 +101,9 @@ def loop(dataset, model, optimizer=None, max_time=None, device=None, update_freq
 
         # Print the average loss after every `update_frequency` batches
         if (batch_idx + 1) % update_frequency == 0:
-            print(f"\rAverage Loss after {batch_idx + 1} batches: {total_loss/total_count:.8f}")
-        
+            print(
+                f"\rAverage Loss after {batch_idx + 1} batches: {total_loss/total_count:.8f}"
+            )
 
     return total_loss / total_count
 
